@@ -1,0 +1,11 @@
+# Ignore platform-specific directories from language statistics
+
+android/** linguist-vendored
+ios/** linguist-vendored
+linux/** linguist-vendored
+macos/** linguist-vendored
+windows/** linguist-vendored
+web/** linguist-vendored
+
+# You can also ignore specific file types if needed
+# *.cmake linguist-vendored
