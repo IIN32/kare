@@ -186,7 +186,10 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
       await LocalStorageService().updateMedication(widget.medication, updatedMedication);
 
       for (var time in _selectedTimes) {
-        final String uniqueKey = '${updatedMedication.name}_${time.hour}:${time.minute}';
+        // Fix inconsistent ID generation
+        final String hour = time.hour.toString().padLeft(2, '0');
+        final String minute = time.minute.toString().padLeft(2, '0');
+        final String uniqueKey = '${updatedMedication.name}_$hour:$minute';
         final int baseId = uniqueKey.hashCode.abs();
 
         await notificationService.scheduleNotification(

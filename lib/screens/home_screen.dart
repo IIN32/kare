@@ -5,6 +5,7 @@ import '../services/log_service.dart';
 import '../services/notification_service.dart';
 import '../models/medication.dart';
 import '../models/intake_log.dart';
+import './dashboard_screen.dart';
 import 'add_medication_screen.dart';
 import 'edit_medication_screen.dart';
 import 'history_screen.dart';
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0; 
 
   final List<Widget> _pages = [
+    const DashboardScreen(),
     const MedicationsTab(),
     const HistoryScreen(), 
   ];
@@ -38,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
         items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.medication),
             label: 'Medications',
@@ -106,13 +112,38 @@ class _MedicationsTabState extends State<MedicationsTab> {
 
     await _logService.addLog(log);
 
+    // Cancel notifications using the correct padded time format
+    // scheduledTime is already padded (e.g., "08:05") from the database
     final String uniqueKey = '${medication.name}_$scheduledTime';
     final int baseId = uniqueKey.hashCode.abs();
 
-    for (int i = 1; i <= 3; i++) {
+    // Cancel the main notification (though the user likely clicked it or opened app)
+    await _notificationService.cancelNotification(baseId);
+
+    // Cancel all nag notifications (1 to 15 to be safe, covers old 3 limit and new 15 limit)
+    for (int i = 1; i <= 15; i++) {
       await _notificationService.cancelNotification(baseId + i);
     }
     
+    // BACKWARD COMPATIBILITY: Cancel potential "bugged" unpadded IDs
+    // Example: "08:05" -> "8:5"
+    try {
+      final parts = scheduledTime.split(':');
+      final int h = int.parse(parts[0]);
+      final int m = int.parse(parts[1]);
+      final String unpaddedTime = '$h:$m';
+      
+      final String legacyKey = '${medication.name}_$unpaddedTime';
+      final int legacyBaseId = legacyKey.hashCode.abs();
+      
+      await _notificationService.cancelNotification(legacyBaseId);
+      for (int i = 1; i <= 15; i++) {
+        await _notificationService.cancelNotification(legacyBaseId + i);
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+
     setState(() {}); 
   }
 
@@ -135,8 +166,26 @@ class _MedicationsTabState extends State<MedicationsTab> {
         final int baseId = uniqueKey.hashCode.abs();
         
         await _notificationService.cancelNotification(baseId); 
-        for (int i = 1; i <= 3; i++) {
+        for (int i = 1; i <= 15; i++) {
           await _notificationService.cancelNotification(baseId + i); 
+        }
+
+        // BACKWARD COMPATIBILITY: Cancel potential "bugged" unpadded IDs
+        try {
+          final parts = timeString.split(':');
+          final int h = int.parse(parts[0]);
+          final int m = int.parse(parts[1]);
+          final String unpaddedTime = '$h:$m';
+          
+          final String legacyKey = '${medication.name}_$unpaddedTime';
+          final int legacyBaseId = legacyKey.hashCode.abs();
+          
+          await _notificationService.cancelNotification(legacyBaseId);
+          for (int i = 1; i <= 15; i++) {
+            await _notificationService.cancelNotification(legacyBaseId + i);
+          }
+        } catch (e) {
+          // Ignore
         }
       }
 

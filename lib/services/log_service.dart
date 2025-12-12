@@ -33,6 +33,25 @@ class LogService {
         .toList();
   }
 
+  // Delete all logs for a specific medication on a specific day
+  Future<void> deleteLogsForMedicationOnDay(String medName, DateTime day) async {
+    final Map<dynamic, IntakeLog> map = _box.toMap();
+    final List<dynamic> keysToDelete = [];
+    
+    map.forEach((key, value) {
+      if (value.medicationName == medName &&
+          value.timestamp.year == day.year &&
+          value.timestamp.month == day.month &&
+          value.timestamp.day == day.day) {
+        keysToDelete.add(key);
+      }
+    });
+    
+    if (keysToDelete.isNotEmpty) {
+      await _box.deleteAll(keysToDelete);
+    }
+  }
+
   // Clear all logs
   Future<void> clearAll() async {
     await _box.clear();

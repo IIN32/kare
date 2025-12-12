@@ -52,6 +52,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _confirmDeleteMedicationDay(String medName, DateTime day) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete $medName Logs?'),
+        content: Text('Delete all logs for $medName on ${DateFormat.yMMMd().format(day)}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _logService.deleteLogsForMedicationOnDay(medName, day);
+      _loadData();
+    }
+  }
+
   void _showIntakeDetails(IntakeLog log) {
     final scheduledParts = log.scheduledTime!.split(':');
     final scheduledHour = int.parse(scheduledParts[0]);
@@ -174,7 +193,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(medName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(medName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                      onPressed: () => _confirmDeleteMedicationDay(medName, day),
+                                      tooltip: 'Delete all for this day',
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 8),
                                 _buildDailyStatus(medName, dailyLogs, day),
                               ],

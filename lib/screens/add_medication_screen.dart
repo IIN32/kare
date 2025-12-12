@@ -156,7 +156,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final notificationService = NotificationService();
       
       for (var time in _selectedTimes) {
-        final String uniqueKey = '${newMedication.name}_${time.hour}:${time.minute}';
+        // Ensure consistent ID generation using padded time
+        final String hour = time.hour.toString().padLeft(2, '0');
+        final String minute = time.minute.toString().padLeft(2, '0');
+        final String uniqueKey = '${newMedication.name}_$hour:$minute';
         final int baseId = uniqueKey.hashCode.abs();
 
         await notificationService.scheduleNotification(
