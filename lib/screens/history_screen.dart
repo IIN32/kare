@@ -7,8 +7,16 @@ import '../models/intake_log.dart';
 import '../services/local_storage_service.dart';
 import '../services/log_service.dart';
 
+// Define the enum so it can be used by other screens
+enum HistoryPeriod { week, month, year, all }
+
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  final HistoryPeriod initialPeriod;
+
+  const HistoryScreen({
+    super.key,
+    this.initialPeriod = HistoryPeriod.all,
+  });
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -18,17 +26,44 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final LocalStorageService _storageService = LocalStorageService();
   final LogService _logService = LogService();
   
+  late HistoryPeriod _currentPeriod;
   Map<DateTime, List<IntakeLog>> _groupedLogs = {};
 
   @override
   void initState() {
     super.initState();
+    _currentPeriod = widget.initialPeriod;
     _loadData();
   }
 
   void _loadData() {
     setState(() {
-      final allLogs = _logService.getLogs();
+      var allLogs = _logService.getLogs();
+      
+      // Filter logs based on the selected period
+      final now = DateTime.now();
+      DateTime? cutoff;
+      
+      switch (_currentPeriod) {
+        case HistoryPeriod.week:
+          cutoff = now.subtract(Duration(days: now.weekday - 1));
+          cutoff = DateTime(cutoff.year, cutoff.month, cutoff.day);
+          break;
+        case HistoryPeriod.month:
+          cutoff = DateTime(now.year, now.month, 1);
+          break;
+        case HistoryPeriod.year:
+          cutoff = DateTime(now.year, 1, 1);
+          break;
+        case HistoryPeriod.all:
+          cutoff = null; // No cutoff for all time
+          break;
+      }
+
+      if (cutoff != null) {
+        allLogs = allLogs.where((log) => !log.timestamp.isBefore(cutoff!)).toList();
+      }
+
       _groupedLogs = groupBy(allLogs, (log) => DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day));
     });
   }
@@ -89,14 +124,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text("Intake Details"),
+        title: const Text("Intake Details"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Scheduled for: ${DateFormat.jm().format(scheduledDateTime)}"),
             Text("Taken at: ${DateFormat.jm().format(log.timestamp)}"),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(latenessMessage, style: TextStyle(fontWeight: FontWeight.bold, color: difference.inMinutes > 0 ? Colors.orange : Colors.green)),
           ],
         ),
@@ -130,7 +165,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         }
 
         return InkWell(
-          onTap: isTaken ? () => _showIntakeDetails(logForSlot) : null,
+          onTap: isTaken ? () => _showIntakeDetails(logForSlot!) : null,
           child: Chip(
             visualDensity: VisualDensity.compact,
             avatar: Icon(
@@ -155,7 +190,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         title: const Text('Intake History'),
         actions: [
-           IconButton(
+          PopupMenuButton<HistoryPeriod>(
+            initialValue: _currentPeriod,
+            icon: const Icon(Icons.filter_list),
+            onSelected: (HistoryPeriod item) {
+              setState(() {
+                _currentPeriod = item;
+                _loadData();
+              });
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<HistoryPeriod>>[
+              const PopupMenuItem<HistoryPeriod>(value: HistoryPeriod.week, child: Text('This Week')),
+              const PopupMenuItem<HistoryPeriod>(value: HistoryPeriod.month, child: Text('This Month')),
+              const PopupMenuItem<HistoryPeriod>(value: HistoryPeriod.year, child: Text('This Year')),
+              const PopupMenuItem<HistoryPeriod>(value: HistoryPeriod.all, child: Text('All Time')),
+            ],
+          ),
+          IconButton(
              icon: const Icon(Icons.delete_forever),
              onPressed: _clearHistory,
              tooltip: 'Clear Intake Logs',
@@ -163,7 +214,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ],
       ),
       body: _groupedLogs.isEmpty
-          ? const Center(child: Text('No intake logs yet.', style: TextStyle(color: Colors.grey)))
+          ? Center(
+              child: Text(
+                'No logs found for ${_currentPeriod.name == 'all' ? 'all time' : 'this ${_currentPeriod.name}'}.', 
+                style: const TextStyle(color: Colors.grey)
+              )
+            )
           : ListView.builder(
               itemCount: sortedDays.length,
               itemBuilder: (context, index) {

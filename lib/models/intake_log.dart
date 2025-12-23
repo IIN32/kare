@@ -14,7 +14,7 @@ class IntakeLog extends HiveObject {
   final DateTime timestamp;
 
   @HiveField(3)
-  final String status; // "taken", "skipped"
+  final String status; // "taken_on_time", "taken_late", "skipped"
 
   @HiveField(4)
   final String? scheduledTime; // e.g. "08:00"

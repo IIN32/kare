@@ -6,12 +6,10 @@ import '../services/notification_service.dart';
 
 class EditMedicationScreen extends StatefulWidget {
   final Medication medication;
-  final int index;
 
   const EditMedicationScreen({
     super.key,
     required this.medication,
-    required this.index,
   });
 
   @override
@@ -23,12 +21,27 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   late TextEditingController _nameController;
   late TextEditingController _dosageController;
   
+  late TextEditingController _notesController;
+  late TextEditingController _totalQuantityController;
+  late TextEditingController _currentQuantityController;
+  late TextEditingController _refillThresholdController;
+  
   late List<TimeOfDay> _selectedTimes;
   late bool _isOngoing;
   late DateTime _startDate;
   late DateTime? _endDate;
+  
+  String _selectedType = 'pill';
+  String _selectedUrgency = 'Normal';
 
-  // Nag Interval Controllers
+  final List<Map<String, dynamic>> _medTypes = [
+    {'id': 'pill', 'label': 'Pill', 'icon': Icons.circle},
+    {'id': 'liquid', 'label': 'Liquid', 'icon': Icons.water_drop},
+    {'id': 'injection', 'label': 'Injection', 'icon': Icons.vaccines},
+    {'id': 'inhaler', 'label': 'Inhaler', 'icon': Icons.air},
+    {'id': 'other', 'label': 'Other', 'icon': Icons.medication},
+  ];
+
   late List<TextEditingController> _nagControllers;
 
   @override
@@ -36,6 +49,12 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.medication.name);
     _dosageController = TextEditingController(text: widget.medication.dosage);
+    _notesController = TextEditingController(text: widget.medication.notes ?? '');
+    _totalQuantityController = TextEditingController(text: widget.medication.totalQuantity?.toString() ?? '');
+    _currentQuantityController = TextEditingController(text: widget.medication.currentQuantity?.toString() ?? '');
+    _refillThresholdController = TextEditingController(text: widget.medication.refillThreshold?.toString() ?? '');
+    _selectedType = widget.medication.type ?? 'pill';
+    _selectedUrgency = widget.medication.urgency;
     
     _selectedTimes = widget.medication.times.map((tString) {
       final parts = tString.split(':');
@@ -46,12 +65,11 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     _endDate = widget.medication.endDate;
     _isOngoing = _endDate == null;
 
-    // Initialize nag controllers with existing or default values
     _nagControllers = List.generate(3, (index) {
       if (index < widget.medication.nagIntervals.length) {
         return TextEditingController(text: widget.medication.nagIntervals[index].toString());
       } else {
-        return TextEditingController(); // Empty for non-existent ones
+        return TextEditingController(); 
       }
     });
   }
@@ -60,13 +78,16 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   void dispose() {
     _nameController.dispose();
     _dosageController.dispose();
+    _notesController.dispose();
+    _totalQuantityController.dispose();
+    _currentQuantityController.dispose();
+    _refillThresholdController.dispose();
     for (var controller in _nagControllers) {
       controller.dispose();
     }
     super.dispose();
   }
 
-  // ... (addTime, removeTime, pickDateAndTime methods are the same) ...
   Future<void> _addTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -134,6 +155,60 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     });
   }
 
+  Widget _buildTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Medication Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _medTypes.map((type) {
+              final isSelected = _selectedType == type['id'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ChoiceChip(
+                  label: Text(type['label']),
+                  avatar: Icon(type['icon'], size: 18, color: isSelected ? Colors.white : Colors.grey),
+                  selected: isSelected,
+                  onSelected: (bool selected) {
+                    setState(() {
+                      _selectedType = type['id'];
+                    });
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildUrgencySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Urgency Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment<String>(value: 'Normal', label: Text('Normal'), icon: Icon(Icons.notifications)),
+            ButtonSegment<String>(value: 'Medium', label: Text('Medium'), icon: Icon(Icons.notifications_active)),
+            ButtonSegment<String>(value: 'High', label: Text('High'), icon: Icon(Icons.error)),
+          ],
+          selected: {_selectedUrgency},
+          onSelectionChanged: (Set<String> newSelection) {
+            setState(() {
+              _selectedUrgency = newSelection.first;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
        if (_selectedTimes.isEmpty) {
@@ -159,12 +234,13 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
 
       final notificationService = NotificationService();
       
+      // Cancel all old notifications before rescheduling
       for (var timeString in widget.medication.times) {
         final String uniqueKey = '${widget.medication.name}_$timeString';
         final int baseId = uniqueKey.hashCode.abs();
 
         await notificationService.cancelNotification(baseId); 
-        for (int i = 1; i <= widget.medication.nagIntervals.length; i++) {
+        for (int i = 1; i <= 15; i++) {
           await notificationService.cancelNotification(baseId + i); 
         }
       }
@@ -173,6 +249,10 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'
       ).toList();
       
+      final int? totalQty = int.tryParse(_totalQuantityController.text);
+      final int? currentQty = int.tryParse(_currentQuantityController.text);
+      final int? threshold = int.tryParse(_refillThresholdController.text);
+
       final updatedMedication = Medication(
         name: _nameController.text,
         dosage: _dosageController.text,
@@ -181,43 +261,55 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
         startDate: _startDate,
         endDate: _isOngoing ? null : _endDate,
         nagIntervals: nagIntervals,
+        notes: _notesController.text.isEmpty ? null : _notesController.text,
+        totalQuantity: totalQty,
+        currentQuantity: currentQty,
+        refillThreshold: threshold,
+        type: _selectedType,
+        profileId: widget.medication.profileId,
+        urgency: _selectedUrgency,
       );
-
+      
       await LocalStorageService().updateMedication(widget.medication, updatedMedication);
+      
+      String bodyText = 'Take ${updatedMedication.dosage}';
+      if (updatedMedication.notes != null && updatedMedication.notes!.isNotEmpty) {
+        bodyText += '\nNote: ${updatedMedication.notes}';
+      }
 
+      // Re-schedule notifications
       for (var time in _selectedTimes) {
-        // Fix inconsistent ID generation
-        final String hour = time.hour.toString().padLeft(2, '0');
-        final String minute = time.minute.toString().padLeft(2, '0');
-        final String uniqueKey = '${updatedMedication.name}_$hour:$minute';
+        final now = DateTime.now();
+        final scheduledDateTime = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+        final String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+        final String uniqueKey = '${updatedMedication.name}_$timeStr';
         final int baseId = uniqueKey.hashCode.abs();
 
         await notificationService.scheduleNotification(
           id: baseId,
-          title: 'Time for ${_nameController.text}',
-          body: 'Take ${_dosageController.text}',
-          hour: time.hour,
-          minute: time.minute,
+          title: 'Time for ${updatedMedication.name}',
+          body: bodyText,
+          scheduledTime: scheduledDateTime,
+          medicationName: updatedMedication.name,
+          scheduledTimeStr: timeStr,
+          urgency: _selectedUrgency,
         );
 
-        for (int i = 0; i < nagIntervals.length; i++) {
-          final int nagDelayMinutes = nagIntervals[i];
-          int nagHour = time.hour;
-          int nagMinute = time.minute + nagDelayMinutes;
-          
-          while (nagMinute >= 60) {
-            nagMinute -= 60;
-            nagHour += 1;
+        // Schedule Nags
+        for (int i = 0; i < updatedMedication.nagIntervals.length; i++) {
+          final nagDelay = updatedMedication.nagIntervals[i];
+          if (nagDelay > 0) {
+            final nagDateTime = scheduledDateTime.add(Duration(minutes: nagDelay));
+            await notificationService.scheduleNotification(
+              id: baseId + i + 1,
+              title: 'Reminder: ${updatedMedication.name}',
+              body: 'Did you take your ${updatedMedication.dosage}?',
+              scheduledTime: nagDateTime,
+              medicationName: updatedMedication.name,
+              scheduledTimeStr: timeStr,
+              urgency: _selectedUrgency,
+            );
           }
-          if (nagHour >= 24) nagHour -= 24;
-
-          await notificationService.scheduleNotification(
-            id: baseId + i + 1,
-            title: 'Missed Meds? ${_nameController.text}',
-            body: 'Reminder: Take ${_dosageController.text}',
-            hour: nagHour,
-            minute: nagMinute,
-          );
         }
       }
 
@@ -248,6 +340,61 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
               TextFormField(
                 controller: _dosageController,
                 decoration: const InputDecoration(labelText: 'Dosage', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 24),
+              
+              _buildUrgencySelector(),
+              const SizedBox(height: 24),
+
+              _buildTypeSelector(),
+              const SizedBox(height: 24),
+              
+              TextFormField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Notes / Instructions',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 24),
+              
+              const Text('Refill Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _totalQuantityController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Package Size',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                   Expanded(
+                    child: TextFormField(
+                      controller: _currentQuantityController, // New
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Current Quantity',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+               TextFormField(
+                controller: _refillThresholdController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Alert Threshold',
+                  border: OutlineInputBorder(),
+                ),
               ),
               const SizedBox(height: 24),
 

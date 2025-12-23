@@ -1,11 +1,15 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
+
+import '../models/intake_log.dart';
+import '../services/log_service.dart';
+import '../services/local_storage_service.dart';
 
 class NotificationService {
-  // Singleton pattern
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
@@ -13,139 +17,128 @@ class NotificationService {
   final notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
 
-  bool get isInitialized => _isInitialized;
-
-  // INITIALIZE
-  Future<void> initNotification() async {
+  Future<void> init() async {
     if (_isInitialized) return;
 
-    // Initialize timezone
     try {
       tz_data.initializeTimeZones();
-      // Fetch the timezone. Using var to handle potential type mismatches across versions.
-      final timeZoneName = await FlutterTimezone.getLocalTimezone();
-      debugPrint("Device Timezone from System: $timeZoneName");
-      
-      // Ensure we have a string
-      tz.setLocalLocation(tz.getLocation(timeZoneName.toString()));
-      debugPrint("Local Location set to: ${tz.local.name}");
+      final timeZoneResult = await FlutterTimezone.getLocalTimezone();
+      final String timeZoneName = timeZoneResult.toString();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (e) {
-      debugPrint("FAILED to set local location. Defaulting to UTC. Error: $e");
+      debugPrint("Error initializing timezone: $e");
     }
 
-    // Prepare android init settings
-    const initSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // Init settings
-    const initSettings = InitializationSettings(android: initSettingsAndroid);
-
-    // Final init
-    await notificationsPlugin.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (details) {
-        debugPrint("Notification Clicked: ${details.payload}");
-      },
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
     );
 
-    // Request permission for Android 13+ (Notifications)
-    final bool? granted = await notificationsPlugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
-    debugPrint("Notification Permission Granted: $granted");
-    
-    // Request permission for Android 12+ (Exact Alarms)
-    final bool? exactAlarmGranted = await notificationsPlugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()?.requestExactAlarmsPermission();
-    debugPrint("Exact Alarm Permission Granted: $exactAlarmGranted");
+    await notificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
+    );
 
     _isInitialized = true;
   }
 
-  // Notifications details
-  NotificationDetails notificationDetails() {
+  @pragma('vm:entry-point')
+  static void onDidReceiveNotificationResponse(NotificationResponse response) {
+    // We just want to open the app, so we don't need to do anything here.
+  }
+
+  // For reminders with actions
+  NotificationDetails _reminderNotificationDetails(String urgency) {
+    Color color;
+    Importance importance;
+    Priority priority;
+
+    switch (urgency) {
+      case 'High':
+        color = Colors.red;
+        importance = Importance.max;
+        priority = Priority.high;
+        break;
+      case 'Medium':
+        color = Colors.orange;
+        importance = Importance.high;
+        priority = Priority.high;
+        break;
+      default:
+        color = Colors.blue;
+        importance = Importance.defaultImportance;
+        priority = Priority.defaultPriority;
+        break;
+    }
+
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        'medication_reminders_channel', 
+        'medication_reminders_channel',
         'Medication Reminders',
         channelDescription: 'Channel for medication reminder notifications',
-        importance: Importance.max,
-        priority: Priority.max, 
+        importance: importance,
+        priority: priority,
+        color: color,
         ticker: 'ticker',
-        playSound: true,
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000]),
-        enableLights: true,
-        fullScreenIntent: true,
-        visibility: NotificationVisibility.public,
       ),
     );
   }
 
-  Future<void> showNotification({
-    int id = 0,
-    String? title,
-    String? body,
-  }) async {
-    debugPrint("Attempting to show instant notification...");
-    try {
-      await notificationsPlugin.show(
-        id, 
-        title, 
-        body, 
-        notificationDetails()
-      );
-      debugPrint("Instant notification command sent.");
-    } catch (e) {
-      debugPrint("Error showing notification: $e");
-    }
+  // For simple alerts without actions
+  NotificationDetails _alertNotificationDetails() {
+    return const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'medication_alerts_channel', 
+        'Medication Alerts',
+        channelDescription: 'Channel for important alerts like refills',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    );
   }
-
-  // Schedule Notifications at a specified time
-  Future<void> scheduleNotification({
-    int id = 1,
+  
+  // Method for simple, immediate alerts (like refills)
+  Future<void> showNotification({
+    required int id,
     required String title,
     required String body,
-    required int hour,
-    required int minute,
   }) async {
-    final now = tz.TZDateTime.now(tz.local);
-    debugPrint("Current Time (tz.local): $now");
-
-    var scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
+    await notificationsPlugin.show(
+      id,
+      title,
+      body,
+      _alertNotificationDetails(),
     );
-
-    debugPrint("Target Date: $scheduledDate");
-
-    if (scheduledDate.isBefore(now)) {
-      debugPrint("Target time passed. Scheduling for tomorrow.");
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-
-    debugPrint("Final Scheduled Date: $scheduledDate");
-
-    try {
-      await notificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledDate,
-        notificationDetails(),
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
-        matchDateTimeComponents: DateTimeComponents.time,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime, // Added this required parameter
-      );
-      debugPrint("Notification successfully scheduled (AlarmClock Mode) for $scheduledDate");
-    } catch (e) {
-      debugPrint("Error scheduling notification: $e");
-    }
   }
 
-  // Cancel Notifications
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledTime,
+    required String medicationName,
+    required String scheduledTimeStr,
+    required String urgency,
+  }) async {
+    final tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
+
+    final payload = '$id;;;$medicationName;;;$scheduledTimeStr;;;$body';
+
+    await notificationsPlugin.zonedSchedule(
+      id,
+      title,
+      body,
+      scheduledDate,
+      _reminderNotificationDetails(urgency),
+      payload: payload,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
   Future<void> cancelNotification(int id) async {
     await notificationsPlugin.cancel(id);
   }

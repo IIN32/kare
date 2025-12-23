@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/local_storage_service.dart';
 import '../services/log_service.dart';
 import '../services/notification_service.dart';
+import '../services/profile_service.dart';
 import '../models/medication.dart';
 import '../models/intake_log.dart';
+import '../models/profile.dart';
+import '../widgets/medication_cards.dart';
 import './dashboard_screen.dart';
 import 'add_medication_screen.dart';
 import 'edit_medication_screen.dart';
 import 'history_screen.dart';
+import 'medication_history_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,12 +24,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0; 
 
-  final List<Widget> _pages = [
-    const DashboardScreen(),
-    const MedicationsTab(),
-    const HistoryScreen(), 
-  ];
-
   void _onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
@@ -34,11 +32,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      DashboardScreen(onNavigateToMedications: () => _onTabTapped(1)),
+      const MedicationsTab(),
+      const HistoryScreen(), 
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
+        type: BottomNavigationBarType.fixed, 
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
@@ -51,6 +57,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'History',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),
@@ -67,26 +77,41 @@ class MedicationsTab extends StatefulWidget {
 
 class _MedicationsTabState extends State<MedicationsTab> {
   List<Medication> _activeMedications = [];
+  List<Medication> _inactiveMedications = [];
   final LocalStorageService _storageService = LocalStorageService();
   final LogService _logService = LogService();
   final NotificationService _notificationService = NotificationService();
+  final ProfileService _profileService = ProfileService();
 
   @override
   void initState() {
     super.initState();
+    _profileService.addListener(_loadMedications);
+    _logService.addListener(_loadMedications); // Listen to log changes
     _loadMedications();
+  }
+  
+  @override
+  void dispose() {
+    _profileService.removeListener(_loadMedications);
+    _logService.removeListener(_loadMedications); // Remove listener
+    super.dispose();
   }
 
   void _loadMedications() {
     setState(() {
-      final allMeds = _storageService.getMedications();
+      final allMeds = _storageService.getMedications().where((med) => med.profileId == _profileService.currentProfileId && !med.isArchived).toList();
       final now = DateTime.now();
       
       _activeMedications = allMeds.where((med) {
         return med.endDate == null || med.endDate!.isAfter(now);
       }).toList();
-      
       _activeMedications.sort((a, b) => a.startDate.compareTo(b.startDate));
+      
+      _inactiveMedications = allMeds.where((med) {
+        return med.endDate != null && med.endDate!.isBefore(now);
+      }).toList();
+      _inactiveMedications.sort((a, b) => b.endDate!.compareTo(a.endDate!));
     });
   }
 
@@ -102,46 +127,67 @@ class _MedicationsTabState extends State<MedicationsTab> {
   }
 
   Future<void> _logIntake(Medication medication, String scheduledTime) async {
+    // Calculate status
+    final timeParts = scheduledTime.split(':');
+    final sh = int.parse(timeParts[0]);
+    final sm = int.parse(timeParts[1]);
+    final now = DateTime.now();
+    
+    DateTime scheduledDateTime = DateTime(now.year, now.month, now.day, sh, sm);
+    Duration diff = now.difference(scheduledDateTime);
+    
+    if (diff.inHours < -12) {
+       scheduledDateTime = scheduledDateTime.subtract(const Duration(days: 1));
+       diff = now.difference(scheduledDateTime);
+    }
+    
+    String status = 'taken_on_time';
+    if (diff.inMinutes > 30) {
+      status = 'taken_late';
+    }
+
     final log = IntakeLog(
       id: DateTime.now().toIso8601String(),
       medicationName: medication.name,
       timestamp: DateTime.now(),
-      status: 'taken',
+      status: status,
       scheduledTime: scheduledTime, 
     );
 
     await _logService.addLog(log);
 
-    // Cancel notifications using the correct padded time format
-    // scheduledTime is already padded (e.g., "08:05") from the database
+    if (medication.currentQuantity != null && medication.currentQuantity! > 0) {
+      medication.currentQuantity = medication.currentQuantity! - 1;
+      await medication.save(); 
+
+      if (medication.refillThreshold != null && medication.currentQuantity! <= medication.refillThreshold!) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Refill Alert: Only ${medication.currentQuantity} ${medication.name} left!'),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        _notificationService.showNotification(
+          id: 99999 + medication.hashCode, 
+          title: 'Refill Needed: ${medication.name}',
+          body: 'You have ${medication.currentQuantity} doses left.',
+        );
+      }
+    }
+
+    // Correctly generate the specific ID for the notification that was tapped.
     final String uniqueKey = '${medication.name}_$scheduledTime';
     final int baseId = uniqueKey.hashCode.abs();
 
-    // Cancel the main notification (though the user likely clicked it or opened app)
+    // Cancel the main notification for this specific time
     await _notificationService.cancelNotification(baseId);
 
-    // Cancel all nag notifications (1 to 15 to be safe, covers old 3 limit and new 15 limit)
+    // Cancel all potential nag notifications for this specific time
     for (int i = 1; i <= 15; i++) {
       await _notificationService.cancelNotification(baseId + i);
-    }
-    
-    // BACKWARD COMPATIBILITY: Cancel potential "bugged" unpadded IDs
-    // Example: "08:05" -> "8:5"
-    try {
-      final parts = scheduledTime.split(':');
-      final int h = int.parse(parts[0]);
-      final int m = int.parse(parts[1]);
-      final String unpaddedTime = '$h:$m';
-      
-      final String legacyKey = '${medication.name}_$unpaddedTime';
-      final int legacyBaseId = legacyKey.hashCode.abs();
-      
-      await _notificationService.cancelNotification(legacyBaseId);
-      for (int i = 1; i <= 15; i++) {
-        await _notificationService.cancelNotification(legacyBaseId + i);
-      }
-    } catch (e) {
-      // Ignore parsing errors
     }
 
     setState(() {}); 
@@ -169,101 +215,35 @@ class _MedicationsTabState extends State<MedicationsTab> {
         for (int i = 1; i <= 15; i++) {
           await _notificationService.cancelNotification(baseId + i); 
         }
-
-        // BACKWARD COMPATIBILITY: Cancel potential "bugged" unpadded IDs
-        try {
-          final parts = timeString.split(':');
-          final int h = int.parse(parts[0]);
-          final int m = int.parse(parts[1]);
-          final String unpaddedTime = '$h:$m';
-          
-          final String legacyKey = '${medication.name}_$unpaddedTime';
-          final int legacyBaseId = legacyKey.hashCode.abs();
-          
-          await _notificationService.cancelNotification(legacyBaseId);
-          for (int i = 1; i <= 15; i++) {
-            await _notificationService.cancelNotification(legacyBaseId + i);
-          }
-        } catch (e) {
-          // Ignore
-        }
       }
 
       await _storageService.stopMedication(medication);
       _loadMedications();
     }
   }
+  
+  Future<void> _restoreTreatment(Medication medication) async {
+    await _storageService.restoreMedication(medication);
+    _loadMedications();
+  }
 
-  Widget _buildTimeSlots(Medication medication) {
-    return Wrap(
-      spacing: 4.0, // Reduced spacing
-      runSpacing: 0.0,
-      children: medication.times.map((timeStr) {
-        final todayLogs = _logService.getLogsForMedication(medication.name).where((log) {
-          final now = DateTime.now();
-          return log.timestamp.year == now.year && 
-                 log.timestamp.month == now.month && 
-                 log.timestamp.day == now.day &&
-                 log.scheduledTime == timeStr;
-        }).toList();
+  Widget _buildProfileSwitcher() {
+    final profiles = _profileService.getProfiles();
+    final currentProfile = _profileService.currentProfileId;
 
-        final bool isTaken = todayLogs.isNotEmpty;
-        
-        final now = TimeOfDay.now();
-        final parts = timeStr.split(':');
-        final scheduledH = int.parse(parts[0]);
-        final scheduledM = int.parse(parts[1]);
-        
-        final nowMinutes = now.hour * 60 + now.minute;
-        final scheduledMinutes = scheduledH * 60 + scheduledM;
-        
-        final bool isFuture = nowMinutes < scheduledMinutes;
-        final bool isMissed = !isTaken && (nowMinutes > scheduledMinutes + 15);
-
-        Color color = Colors.grey;
-        IconData icon = Icons.check_box_outline_blank;
-        String formattedTime = DateFormat.j().format(DateTime(2023, 1, 1, scheduledH, scheduledM)).toLowerCase();
-
-        if (isTaken) {
-          color = Colors.green;
-          icon = Icons.check_box;
-        } else if (isFuture) {
-          color = Colors.grey.withOpacity(0.5); 
-          icon = Icons.access_time;
-        } else if (isMissed) {
-          color = Colors.red;
-          icon = Icons.warning_amber_rounded;
+    return DropdownButton<String>(
+      value: currentProfile,
+      icon: const Icon(Icons.person, color: Colors.white),
+      underline: Container(),
+      onChanged: (String? newProfileId) {
+        if (newProfileId != null) {
+          _profileService.setCurrentProfile(newProfileId);
         }
-
-        return InkWell(
-          onTap: () {
-            if (isTaken) {
-              final log = todayLogs.first;
-              final timeTaken = DateFormat.jm().format(log.timestamp);
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text('Slot Taken at $formattedTime'),
-                  content: Text('You took this at $timeTaken.'),
-                  actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-                ),
-              );
-            } else if (isFuture) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('It is not time for this dose yet.')),
-              );
-            } else {
-              _logIntake(medication, timeStr);
-            }
-          },
-          child: Chip(
-            visualDensity: VisualDensity.compact, // Make chip smaller
-            avatar: Icon(icon, color: Colors.white, size: 16),
-            label: Text(formattedTime, style: const TextStyle(color: Colors.white, fontSize: 12)),
-            backgroundColor: color,
-            side: BorderSide.none,
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 0),
-          ),
+      },
+      items: profiles.map<DropdownMenuItem<String>>((Profile profile) {
+        return DropdownMenuItem<String>(
+          value: profile.id,
+          child: Text(profile.name),
         );
       }).toList(),
     );
@@ -273,89 +253,113 @@ class _MedicationsTabState extends State<MedicationsTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Active Medications'),
+        title: const Text('My Medications'),
+        actions: [
+          _buildProfileSwitcher(),
+          const SizedBox(width: 16),
+        ],
       ),
-      body: _activeMedications.isEmpty
-          ? const Center(
-              child: Text(
-                'No active medications.\nTap + to add one.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-          : ListView.builder(
-              itemCount: _activeMedications.length,
-              itemBuilder: (context, index) {
-                final medication = _activeMedications[index];
-                final String startStr = DateFormat.MMMd().format(medication.startDate);
-                final String endStr = medication.endDate != null 
-                    ? DateFormat.MMMd().format(medication.endDate!) 
-                    : 'Ongoing';
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: ExpansionTile(
-                    leading: const CircleAvatar(
-                      child: Icon(Icons.medication_liquid),
-                    ),
-                    title: Text(medication.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Dosage: ${medication.dosage}'),
-                        const SizedBox(height: 8),
-                        _buildTimeSlots(medication),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$startStr — $endStr',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
+      body: ListView(
+        children: [
+          if (_activeMedications.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text("Active Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+            ),
+            ..._activeMedications.map((medication) {
+              return ActiveMedicationCard(
+                medication: medication,
+                logService: _logService,
+                onEdit: () => _navigateAndRefresh(
+                  EditMedicationScreen(medication: medication),
+                ),
+                onEnd: () => _stopTreatment(medication),
+                onDelete: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Delete Forever?'),
+                      content: const Text('Are you sure?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
                       ],
                     ),
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          TextButton.icon(
-                            icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                            label: const Text('Edit'),
-                            onPressed: () => _navigateAndRefresh(
-                              EditMedicationScreen(medication: medication, index: index),
-                            ),
-                          ),
-                          TextButton.icon(
-                            icon: const Icon(Icons.stop_circle_outlined, color: Colors.orange),
-                            label: const Text('End'),
-                            onPressed: () => _stopTreatment(medication),
-                          ),
-                          TextButton.icon(
-                            icon: const Icon(Icons.delete, color: Colors.redAccent),
-                            label: const Text('Delete'),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Delete Forever?'),
-                                  content: const Text('Are you sure?'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) {
-                                await _storageService.deleteMedication(medication);
-                                _loadMedications();
-                              }
-                            },
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                );
-              },
+                  );
+                  if (confirm == true) {
+                    await _storageService.deleteMedication(medication);
+                    _loadMedications();
+                  }
+                },
+                onHistory: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MedicationHistoryScreen(medicationName: medication.name),
+                    ),
+                  );
+                },
+                onLogIntake: (timeStr) => _logIntake(medication, timeStr),
+              );
+            }),
+          ],
+
+          if (_activeMedications.isEmpty && _inactiveMedications.isEmpty)
+             const Padding(
+               padding: EdgeInsets.only(top: 50.0),
+               child: Center(
+                child: Text(
+                  'No medications found for this profile.\nTap + to add one.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+               ),
+             ),
+
+          if (_inactiveMedications.isNotEmpty) ...[
+             const Padding(
+              padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
+              child: Text("Past Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
             ),
+            ..._inactiveMedications.map((medication) {
+              return InactiveMedicationCard(
+                medication: medication,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MedicationHistoryScreen(medicationName: medication.name),
+                    ),
+                  );
+                },
+                onArchive: () async {
+                   await _storageService.archiveMedication(medication, archive: true);
+                   _loadMedications();
+                },
+                onRestore: () => _restoreTreatment(medication),
+                onDelete: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Delete History?'),
+                      content: const Text('Remove this medication record? Logs will remain in Intake History.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await _storageService.deleteMedication(medication);
+                    _loadMedications();
+                  }
+                },
+              );
+            }),
+             const SizedBox(height: 80), 
+          ],
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateAndRefresh(const AddMedicationScreen()),
         child: const Icon(Icons.add),

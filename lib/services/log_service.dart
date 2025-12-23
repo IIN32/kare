@@ -1,8 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/intake_log.dart';
+import 'profile_service.dart';
 
-class LogService {
+class LogService with ChangeNotifier {
   static const String _boxName = 'intakeLogsBox';
+  // Singleton pattern
+  static final LogService _instance = LogService._internal();
+  factory LogService() => _instance;
+  LogService._internal();
+
+  final ProfileService _profileService = ProfileService();
 
   // Initialize Hive box for logs
   Future<void> init() async {
@@ -17,6 +25,15 @@ class LogService {
   // Add a log entry
   Future<void> addLog(IntakeLog log) async {
     await _box.add(log);
+
+    // Award points
+    if (log.status == 'taken_on_time') {
+      _profileService.addPoints(10);
+    } else if (log.status == 'taken_late') {
+      _profileService.addPoints(5);
+    }
+
+    notifyListeners();
   }
 
   // Get all logs, sorted by newest first
@@ -49,11 +66,13 @@ class LogService {
     
     if (keysToDelete.isNotEmpty) {
       await _box.deleteAll(keysToDelete);
+      notifyListeners();
     }
   }
 
   // Clear all logs
   Future<void> clearAll() async {
     await _box.clear();
+    notifyListeners();
   }
 }
