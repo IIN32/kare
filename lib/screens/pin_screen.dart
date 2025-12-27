@@ -44,7 +44,7 @@ class _PinScreenState extends State<PinScreen> {
     }
   }
 
-  void _verifyPin() {
+  void _verifyPin() async {
     if (widget.isSettingPin) {
       if (_firstPin == null) {
         _firstPin = _enteredPin;
@@ -54,10 +54,11 @@ class _PinScreenState extends State<PinScreen> {
         });
       } else {
         if (_firstPin == _enteredPin) {
-          LocalStorageService().setPin(_enteredPin).then((_) {
+          await LocalStorageService().setPin(_enteredPin);
+          if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN has been set!')));
             Navigator.pop(context, true); // Success
-          });
+          }
         } else {
           setState(() {
             _prompt = 'PINs do not match. Please try again.';
@@ -100,7 +101,7 @@ class _PinScreenState extends State<PinScreen> {
                     shape: BoxShape.circle,
                     color: index < _enteredPin.length 
                         ? Theme.of(context).colorScheme.primary 
-                        : Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                        : Theme.of(context).colorScheme.surface.withAlpha(128),
                   ),
                 );
               }),
@@ -140,7 +141,7 @@ class _PinScreenState extends State<PinScreen> {
         }
         final number = (index == 10) ? '0' : (index + 1).toString();
         return TextButton(
-          style: TextButton.styleFrom(shape: const CircleBorder(), backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.5)),
+          style: TextButton.styleFrom(shape: const CircleBorder(), backgroundColor: Theme.of(context).colorScheme.surface.withAlpha(128)),
           child: Text(number, style: Theme.of(context).textTheme.headlineMedium),
           onPressed: () => _onNumberPressed(number),
         );

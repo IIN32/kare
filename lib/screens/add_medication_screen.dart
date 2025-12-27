@@ -65,9 +65,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       initialTime: const TimeOfDay(hour: 8, minute: 0),
     );
     
-    if (!mounted) return;
-
-    if (picked != null) {
+    if (picked != null && mounted) {
       if (!_selectedTimes.any((t) => t.hour == picked.hour && t.minute == picked.minute)) {
         setState(() {
           _selectedTimes.add(picked);
@@ -94,9 +92,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       lastDate: DateTime(2100),
     );
 
-    if (pickedDate == null) return;
-    
-    if (!mounted) return;
+    if (pickedDate == null || !mounted) return;
 
     final TimeOfDay initialTime = TimeOfDay.fromDateTime(initialDate);
     final TimeOfDay? pickedTime = await showTimePicker(
@@ -104,7 +100,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       initialTime: initialTime,
     );
 
-    if (pickedTime == null) return;
+    if (pickedTime == null || !mounted) return;
 
     final DateTime finalDateTime = DateTime(
       pickedDate.year,
@@ -262,7 +258,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Text(
         text,
-        style: TextStyle(color: Colors.blue[800], fontStyle: FontStyle.italic, fontWeight: FontWeight.w500),
+        style: TextStyle(color: Theme.of(context).colorScheme.primary.withAlpha(200), fontStyle: FontStyle.italic, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -284,6 +280,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   label: Text(type['label']),
                   avatar: Icon(type['icon'], size: 18, color: isSelected ? Colors.white : Colors.grey),
                   selected: isSelected,
+                  selectedColor: Theme.of(context).colorScheme.secondary,
                   onSelected: (bool selected) {
                     setState(() {
                       _selectedType = type['id'];
@@ -305,10 +302,15 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         const Text('Urgency Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 8),
         SegmentedButton<String>(
+          style: SegmentedButton.styleFrom(
+            foregroundColor: Colors.grey,
+            selectedForegroundColor: Colors.white,
+            selectedBackgroundColor: Theme.of(context).colorScheme.primary,
+          ),
           segments: const [
-            ButtonSegment<String>(value: 'Normal', label: Text('Normal'), icon: Icon(Icons.notifications)),
-            ButtonSegment<String>(value: 'Medium', label: Text('Medium'), icon: Icon(Icons.notifications_active)),
-            ButtonSegment<String>(value: 'High', label: Text('High'), icon: Icon(Icons.error)),
+            ButtonSegment<String>(value: 'Normal', label: Text('Normal'), icon: Icon(Icons.notifications, color: Colors.blue)),
+            ButtonSegment<String>(value: 'Medium', label: Text('Medium'), icon: Icon(Icons.notifications_active, color: Colors.orange)),
+            ButtonSegment<String>(value: 'High', label: Text('High'), icon: Icon(Icons.error, color: Colors.red)),
           ],
           selected: {_selectedUrgency},
           onSelectionChanged: (Set<String> newSelection) {

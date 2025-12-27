@@ -22,13 +22,14 @@ class IntakeLogAdapter extends TypeAdapter<IntakeLog> {
       timestamp: fields[2] as DateTime,
       status: fields[3] as String,
       scheduledTime: fields[4] as String?,
+      notes: fields[5] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, IntakeLog obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class IntakeLogAdapter extends TypeAdapter<IntakeLog> {
       ..writeByte(3)
       ..write(obj.status)
       ..writeByte(4)
-      ..write(obj.scheduledTime);
+      ..write(obj.scheduledTime)
+      ..writeByte(5)
+      ..write(obj.notes);
   }
 
   @override

@@ -185,11 +185,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 6),
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.2),
+            backgroundColor: Theme.of(context).colorScheme.surface.withAlpha(50),
             color: color,
             minHeight: 8,
             borderRadius: BorderRadius.circular(4),
           ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildProgressBars() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Progress Overview',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBar('Weekly Progress', _weeklyProgress, Colors.green, HistoryPeriod.week),
+          const SizedBox(height: 16),
+          _buildProgressBar('Monthly Progress', _monthlyProgress, Colors.orange, HistoryPeriod.month),
+          const SizedBox(height: 16),
+          _buildProgressBar('Yearly Progress', _yearlyProgress, Colors.red, HistoryPeriod.year),
         ],
       ),
     );
@@ -278,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             } else if (adherence > 0) {
               color = Colors.green.shade200;
             } else {
-              color = Colors.grey.withOpacity(0.2); 
+              color = Colors.grey.withAlpha(50); 
             }
 
             return Tooltip(
@@ -347,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+          BoxShadow(color: Theme.of(context).colorScheme.primary.withAlpha(75), blurRadius: 8, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
@@ -374,9 +402,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha(25),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withAlpha(75)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,7 +521,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: CircularProgressIndicator(
                             value: 1.0, 
                             strokeWidth: 12,
-                            color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.surface.withAlpha(50),
                           ),
                         ),
                         SizedBox(
@@ -528,6 +556,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 32),
 
               _buildHeatmap(),
+              const SizedBox(height: 20),
+
+              // _buildProgressBars(), // Commented out for future use
               const SizedBox(height: 32),
             ],
           ),

@@ -19,11 +19,15 @@ class IntakeLog extends HiveObject {
   @HiveField(4)
   final String? scheduledTime; // e.g. "08:00"
 
+  @HiveField(5)
+  final String? notes;
+
   IntakeLog({
     required this.id,
     required this.medicationName,
     required this.timestamp,
     required this.status,
     this.scheduledTime,
+    this.notes,
   });
 }

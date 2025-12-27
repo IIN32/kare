@@ -44,7 +44,9 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
-        type: BottomNavigationBarType.fixed, 
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
@@ -126,7 +128,7 @@ class _MedicationsTabState extends State<MedicationsTab> {
     }
   }
 
-  Future<void> _logIntake(Medication medication, String scheduledTime) async {
+  Future<void> _logIntake(Medication medication, String scheduledTime, String? notes) async {
     // Calculate status
     final timeParts = scheduledTime.split(':');
     final sh = int.parse(timeParts[0]);
@@ -152,6 +154,7 @@ class _MedicationsTabState extends State<MedicationsTab> {
       timestamp: DateTime.now(),
       status: status,
       scheduledTime: scheduledTime, 
+      notes: notes,
     );
 
     await _logService.addLog(log);
@@ -254,6 +257,8 @@ class _MedicationsTabState extends State<MedicationsTab> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Medications'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
         actions: [
           _buildProfileSwitcher(),
           const SizedBox(width: 16),
@@ -262,9 +267,9 @@ class _MedicationsTabState extends State<MedicationsTab> {
       body: ListView(
         children: [
           if (_activeMedications.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text("Active Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+             Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text("Active Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
             ),
             ..._activeMedications.map((medication) {
               return ActiveMedicationCard(
@@ -299,7 +304,7 @@ class _MedicationsTabState extends State<MedicationsTab> {
                     ),
                   );
                 },
-                onLogIntake: (timeStr) => _logIntake(medication, timeStr),
+                onLogIntake: (timeStr, notes) => _logIntake(medication, timeStr, notes),
               );
             }),
           ],
@@ -317,9 +322,9 @@ class _MedicationsTabState extends State<MedicationsTab> {
              ),
 
           if (_inactiveMedications.isNotEmpty) ...[
-             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
-              child: Text("Past Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
+             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+              child: Text("Past Treatments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.secondary)),
             ),
             ..._inactiveMedications.map((medication) {
               return InactiveMedicationCard(
@@ -362,7 +367,8 @@ class _MedicationsTabState extends State<MedicationsTab> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateAndRefresh(const AddMedicationScreen()),
-        child: const Icon(Icons.add),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

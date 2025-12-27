@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
-import '../services/local_storage_service.dart';
 import '../models/profile.dart';
 import 'pin_screen.dart';
 import 'home_screen.dart';
@@ -13,7 +12,16 @@ class SetupScreen extends StatefulWidget {
 }
 
 class _SetupScreenState extends State<SetupScreen> {
+  final PageController _pageController = PageController();
   final _profileNameController = TextEditingController(text: 'Me');
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _profileNameController.dispose();
+    super.dispose();
+  }
 
   Future<void> _completeSetup() async {
     if (_profileNameController.text.isEmpty) {
@@ -23,14 +31,12 @@ class _SetupScreenState extends State<SetupScreen> {
       return;
     }
 
-    // 1. Prompt user to set the master app PIN FIRST
     if (mounted) {
       final pinWasSet = await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => const PinScreen(isSettingPin: true)),
       );
 
-      // 2. Only if PIN was set, create the profile and proceed
       if (pinWasSet == true && mounted) {
         final profileService = ProfileService();
         final defaultProfile = Profile(
@@ -38,7 +44,6 @@ class _SetupScreenState extends State<SetupScreen> {
           name: _profileNameController.text,
         );
         
-        // Save profile only after PIN success
         await profileService.addProfile(defaultProfile);
         await profileService.setCurrentProfile(defaultProfile.id);
 
@@ -50,34 +55,123 @@ class _SetupScreenState extends State<SetupScreen> {
     }
   }
 
+  Widget _buildPage({required String title, required String description, required IconData icon, Widget? extraContent}) {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 100, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 48),
+          Text(title, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary), textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          Text(description, style: const TextStyle(fontSize: 16, height: 1.5), textAlign: TextAlign.center),
+          if (extraContent != null) ...[
+            const SizedBox(height: 48),
+            extraContent,
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          PageView(
+            controller: _pageController,
+            onPageChanged: (int page) {
+              setState(() {
+                _currentPage = page;
+              });
+            },
             children: [
-              const Text('Welcome to Kare!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              const Text('Let\'s get started by creating your primary profile.', textAlign: TextAlign.center),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _profileNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Your Name',
-                  border: OutlineInputBorder(),
-                ),
+              _buildPage(
+                title: 'Welcome to Kare',
+                description: 'Your personal companion for managing medications and tracking your health journey.',
+                icon: Icons.health_and_safety_rounded,
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _completeSetup,
-                child: const Text('Next: Set App PIN'),
+              _buildPage(
+                title: 'Never Miss a Dose',
+                description: 'Set reminders for your medications and track your adherence progress every day.',
+                icon: Icons.notifications_active_rounded,
+              ),
+              _buildPage(
+                title: 'Secure & Private',
+                description: 'Your health data is stored locally and protected by a secure PIN.',
+                icon: Icons.lock_rounded,
+              ),
+              _buildPage(
+                title: 'Let\'s Get Started',
+                description: 'Create your profile to begin.',
+                icon: Icons.account_circle_rounded,
+                extraContent: Column(
+                  children: [
+                    TextField(
+                      controller: _profileNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Your Name',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _completeSetup,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Create Profile & Set PIN'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(4, (index) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _currentPage == index
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey.shade300,
+                  ),
+                );
+              }),
+            ),
+          ),
+          if (_currentPage < 3)
+            Positioned(
+              bottom: 24,
+              right: 24,
+              child: TextButton(
+                onPressed: () {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                child: const Text('Next'),
+              ),
+            ),
+        ],
       ),
     );
   }

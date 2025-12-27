@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/local_storage_service.dart';
 import '../services/log_service.dart';
 import '../services/notification_service.dart';
@@ -63,12 +62,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       await LocalStorageService().clearAll();
       await LogService().clearAll();
       await NotificationService().notificationsPlugin.cancelAll();
 
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All data has been reset.')),
         );
@@ -104,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   MaterialPageRoute(builder: (_) => const PinScreen(isSettingPin: true)),
                 );
 
-                if (newPin != null && newPin.isNotEmpty) {
+                if (newPin != null && newPin.isNotEmpty && mounted) {
                   final newProfile = Profile(
                     id: DateTime.now().toIso8601String(),
                     name: profileName,
@@ -136,7 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       await _profileService.deleteProfile(profileId);
     }
   }
@@ -153,7 +152,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () async {
               Navigator.pop(context);
               await Navigator.push(context, MaterialPageRoute(builder: (_) => const PinScreen(isSettingPin: true)));
-              setState(() {}); // Re-build to update UI
+              if(mounted) {
+                setState(() {}); // Re-build to update UI
+              }
             },
           ),
           if (hasPin)
@@ -162,8 +163,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('Remove Master PIN', style: TextStyle(color: Colors.red)),
               onTap: () async {
                 await _storageService.setPin(null);
-                Navigator.pop(context);
-                setState(() {});
+                if(mounted) {
+                  Navigator.pop(context);
+                  setState(() {});
+                }
               },
             ),
         ],
@@ -173,8 +176,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Manually formatting date to avoid DateFormat issues
-    // final DateFormat formatter = DateFormat.yMMMd(); // Removed for now
     final bool hasPin = _storageService.getPin() != null;
 
     return Scaffold(

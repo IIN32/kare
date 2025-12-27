@@ -9,7 +9,7 @@ class ActiveMedicationCard extends StatelessWidget {
   final VoidCallback onEnd;
   final VoidCallback onDelete;
   final VoidCallback onHistory;
-  final Function(String) onLogIntake;
+  final Function(String, String?) onLogIntake;
   final LogService logService; // Passed to avoid re-instantiating if possible, or we can instantiate inside
 
   const ActiveMedicationCard({
@@ -37,6 +37,15 @@ class ActiveMedicationCard extends StatelessWidget {
     } else {
       return 'Starts in ${-diffDays} days';
     }
+  }
+
+  String _formatLateDuration(Duration duration) {
+    if (duration.inHours > 0) {
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes % 60;
+      return '$hours hour${hours > 1 ? 's' : ''}${minutes > 0 ? ', $minutes minute${minutes > 1 ? 's' : ''}' : ''}';
+    }
+    return '${duration.inMinutes} minute${duration.inMinutes > 1 ? 's' : ''}';
   }
 
   Widget _buildTimeSlots(BuildContext context) {
@@ -70,7 +79,12 @@ class ActiveMedicationCard extends StatelessWidget {
         String formattedTime = DateFormat.j().format(DateTime(2023, 1, 1, scheduledH, scheduledM)).toLowerCase();
 
         if (isTaken) {
-          color = Colors.green;
+          final log = todayLogs.first;
+          if(log.status == 'taken_late') {
+            color = Colors.orange;
+          } else {
+            color = Colors.green;
+          }
           icon = Icons.check_box;
         } else if (isFuture) {
           color = Colors.grey.withOpacity(0.5); 
@@ -85,22 +99,31 @@ class ActiveMedicationCard extends StatelessWidget {
             if (isTaken) {
               final log = todayLogs.first;
               final timeTaken = DateFormat.jm().format(log.timestamp);
+              final scheduledTime = DateFormat.jm().format(DateTime(2023, 1, 1, scheduledH, scheduledM));
               
               String statusText = "Taken";
-              if (log.status == 'taken_on_time') statusText = "Taken On Time";
-              else if (log.status == 'taken_late') statusText = "Taken Late";
+              if (log.status == 'taken_on_time') {
+                  statusText = "Taken within time at $timeTaken";
+              } else if (log.status == 'taken_late') {
+                  final scheduled = DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day, scheduledH, scheduledM);
+                  final diff = log.timestamp.difference(scheduled);
+                  statusText = "Taken ${_formatLateDuration(diff)} late at $timeTaken";
+              }
 
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: Text('Slot Taken at $formattedTime'),
+                  title: Text('Slot Taken at $scheduledTime'),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                        Text('Status: $statusText', style: TextStyle(fontWeight: FontWeight.bold, color: log.status == 'taken_late' ? Colors.red : Colors.green)),
-                        const SizedBox(height: 4),
-                        Text('Taken at: $timeTaken'),
+                        Text('Status: $statusText', style: TextStyle(fontWeight: FontWeight.bold, color: log.status == 'taken_late' ? Colors.orange : Colors.green)),
+                        if (log.notes != null && log.notes!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text('Notes: ${log.notes}'),
+                          ),
                     ]
                   ),
                   actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
@@ -111,7 +134,7 @@ class ActiveMedicationCard extends StatelessWidget {
                 const SnackBar(content: Text('It is not time for this dose yet.')),
               );
             } else {
-              onLogIntake(timeStr);
+              onLogIntake(timeStr, null);
             }
           },
           child: Chip(
@@ -144,7 +167,7 @@ class ActiveMedicationCard extends StatelessWidget {
         urgencyColor = Colors.orange;
         break;
       default:
-        urgencyColor = Colors.blue;
+        urgencyColor = Theme.of(context).colorScheme.primary;
         break;
     }
 
@@ -165,7 +188,7 @@ class ActiveMedicationCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Dosage: ${medication.dosage}'),
-            Text(durationStr, style: TextStyle(color: Colors.blue[800], fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(durationStr, style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             _buildTimeSlots(context),
             const SizedBox(height: 8),
@@ -180,7 +203,7 @@ class ActiveMedicationCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               TextButton.icon(
-                icon: const Icon(Icons.history, color: Colors.purple),
+                icon: Icon(Icons.history, color: Theme.of(context).colorScheme.secondary),
                 label: const Text('History'),
                 onPressed: onHistory,
               ),

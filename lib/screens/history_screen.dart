@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 
-import '../models/medication.dart';
 import '../models/intake_log.dart';
 import '../services/local_storage_service.dart';
 import '../services/log_service.dart';
@@ -81,7 +80,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       await _logService.clearAll();
       _loadData();
     }
@@ -100,7 +99,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       await _logService.deleteLogsForMedicationOnDay(medName, day);
       _loadData();
     }
@@ -165,7 +164,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         }
 
         return InkWell(
-          onTap: isTaken ? () => _showIntakeDetails(logForSlot!) : null,
+          onTap: isTaken ? () => _showIntakeDetails(logForSlot) : null,
           child: Chip(
             visualDensity: VisualDensity.compact,
             avatar: Icon(
@@ -266,7 +265,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 );
