@@ -29,10 +29,26 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: "^0.13.1"
+  flutter_native_splash: "^2.3.0"
   
   # Code Generation
   hive_generator: ^2.0.0
   build_runner: ^2.3.3
 
+flutter_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/app_icon.png
+  android: true
+  ios: true
+
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/
