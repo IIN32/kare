@@ -29,7 +29,7 @@ A simple, yet powerful medication reminder and tracking application built with F
 
 | Dashboard | Medications List | Add Medication |
 | :---: | :---: | :---: |
-| <img src="assets/screenshots/dashboard.png" width="250"> | <img src="assets/screenshots/medications.png" width="250"> | <img src="assets/screenshots/add_medication.png" width="250"> |
+| <img src="assets/screenshots/install.png" width="250"> | <img src="assets/screenshots/profile.png" width="250"> | <img src="assets/screenshots/dashboard.png" width="250"> | <img src="assets/screenshots/medication.png" width="250">width="250"> | <img src="assets/screenshots/settings.png" width="250">width="250"> |
 
 ## 🚀 Getting Started
 
