@@ -10,7 +10,6 @@ A simple, yet powerful medication reminder and tracking application built with F
 - **Smart Intake Logging:**
     - Log doses with a single tap.
     - Doses are automatically marked as "On-Time" or "Late" based on a dynamic window calculated from your reminder settings.
-    - Add optional notes to each intake to track side effects or other details.
 - **Gamification & Motivation:**
     - Earn points for taking medication: 10 points for on-time doses, 5 for late ones.
     - Maintain a daily adherence streak.
@@ -20,18 +19,19 @@ A simple, yet powerful medication reminder and tracking application built with F
     - Lists of "Missed" and "Upcoming" medications for the day.
     - "Recent Activity" heatmap to visualize your adherence over the past month.
     - Alerts for medications running low on stock.
-- **Detailed History:** A clear, grouped view of your past intake history. Tap any entry to see the exact time it was taken and any notes you added.
+- **Detailed History:** A clear, grouped view of your past intake history.
 - **Secure & Private:**
     - All data is stored locally on your device using Hive.
     - Optional 4-digit PIN protection to lock the app.
 - **User-Friendly Onboarding:** A smooth, multi-step onboarding flow for new users that explains the app's core features.
-- **Active & Past Treatments:** Medications automatically move from the active list to a historical archive when the treatment period ends.
-- **Local Notifications:** All reminders are scheduled locally on your device and work offline.
-- **Persistent Storage:** Your data is saved securely on your device using Hive.
+
+## 📸 Screenshots
+
+| Dashboard | Medications List | Add Medication |
+| :---: | :---: | :---: |
+| <img src="assets/screenshots/dashboard.png" width="250"> | <img src="assets/screenshots/medications.png" width="250"> | <img src="assets/screenshots/add_medication.png" width="250"> |
 
 ## 🚀 Getting Started
-
-This project is a starting point for a Flutter application.
 
 To get a local copy up and running, follow these simple steps.
 
@@ -44,7 +44,7 @@ To get a local copy up and running, follow these simple steps.
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/your_username/your_repository.git
+   git clone https://github.com/your_username/kare.git
    ```
 2. Navigate to the project directory
    ```sh
@@ -66,11 +66,3 @@ To get a local copy up and running, follow these simple steps.
 ## 📖 Project Documentation
 
 For a detailed technical overview of the project, including the architecture, data flow, and database schema, please see the [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md) file.
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/your_username/your_repository/issues).
-
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` for more information.

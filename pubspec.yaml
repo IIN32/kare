@@ -42,8 +42,8 @@ flutter_icons:
   image_path: "assets/images/app_icon.png"
 
 flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/images/app_icon.png
+  color: "#1976D2" # Changed to match app's primary theme color
+  image: assets/images/launch_icon.png # Using the dedicated launch icon
   android: true
   ios: true
 
