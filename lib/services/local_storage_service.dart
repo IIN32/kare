@@ -76,6 +76,11 @@ class LocalStorageService {
     await _settingsBox.put('isDarkMode', value);
   }
 
+  bool get isHighAccuracyMode => _settingsBox.get('isHighAccuracyMode', defaultValue: false);
+  Future<void> setHighAccuracyMode(bool value) async {
+    await _settingsBox.put('isHighAccuracyMode', value);
+  }
+
   String? getPin() => _settingsBox.get('app_pin');
   Future<void> setPin(String? pin) async {
     if (pin == null || pin.isEmpty) {

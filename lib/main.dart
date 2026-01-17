@@ -16,13 +16,21 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Services
-  await LocalStorageService().init();
+  final localStorage = LocalStorageService();
+  await localStorage.init();
   await LogService().init();
   await ProfileService().init();
-  await NotificationService().init();
+  final notificationService = NotificationService();
+  await notificationService.init();
+  await notificationService.requestExactAlarmPermission();
+
+  // Start foreground service if enabled
+  if (localStorage.isHighAccuracyMode) {
+    await notificationService.startForegroundService();
+  }
 
   // Load Theme
-  final isDark = LocalStorageService().isDarkMode;
+  final isDark = localStorage.isDarkMode;
   themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
 
   runApp(const AppRoot());

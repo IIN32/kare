@@ -18,6 +18,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final ProfileService _profileService = ProfileService();
   final LocalStorageService _storageService = LocalStorageService();
+  final NotificationService _notificationService = NotificationService();
   List<Profile> _profiles = [];
   List<Medication> _archivedMedications = [];
   final _newProfileController = TextEditingController();
@@ -63,9 +64,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirm == true && mounted) {
-      await LocalStorageService().clearAll();
+      await _storageService.clearAll();
       await LogService().clearAll();
-      await NotificationService().notificationsPlugin.cancelAll();
+      await _notificationService.notificationsPlugin.cancelAll();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -177,6 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final bool hasPin = _storageService.getPin() != null;
+    final bool isHighAccuracy = _storageService.isHighAccuracyMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -186,20 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Padding(
             padding: EdgeInsets.all(16.0),
-            child: Text('Security', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-          ),
-          SwitchListTile(
-            title: const Text('Require Master PIN to open app'),
-            value: hasPin,
-            onChanged: (value) {
-              _managePin();
-            },
-          ),
-
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text('Appearance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+            child: Text('General', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
           ),
           ValueListenableBuilder<ThemeMode>(
             valueListenable: themeNotifier,
@@ -212,10 +201,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (value) {
                   final newMode = value ? ThemeMode.dark : ThemeMode.light;
                   themeNotifier.value = newMode;
-                  LocalStorageService().setDarkMode(value);
+                  _storageService.setDarkMode(value);
                 },
                 secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
               );
+            },
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Security & Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+          ),
+          SwitchListTile(
+            title: const Text('Require Master PIN to open app'),
+            value: hasPin,
+            onChanged: (value) {
+              _managePin();
+            },
+          ),
+          SwitchListTile(
+            title: const Text('High Accuracy Mode'),
+            subtitle: const Text('Ensures timely reminders with a persistent notification. Recommended.'),
+            value: isHighAccuracy,
+            onChanged: (value) async {
+              await _storageService.setHighAccuracyMode(value);
+              if (value) {
+                await _notificationService.startForegroundService();
+              } else {
+                await _notificationService.stopForegroundService();
+              }
+              setState(() {});
             },
           ),
           const Divider(),

@@ -74,6 +74,46 @@ class _SetupScreenState extends State<SetupScreen> {
       ),
     );
   }
+  
+  Widget _buildFinalPage() {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.account_circle_rounded, size: 100, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 48),
+            Text('Let\'s Get Started', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            const Text('Create your profile to begin.', style: TextStyle(fontSize: 16, height: 1.5), textAlign: TextAlign.center),
+            const SizedBox(height: 48),
+            TextField(
+              controller: _profileNameController,
+              decoration: const InputDecoration(
+                labelText: 'Your Name',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _completeSetup,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Create Profile & Set PIN'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,36 +144,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 description: 'Your health data is stored locally and protected by a secure PIN.',
                 icon: Icons.lock_rounded,
               ),
-              _buildPage(
-                title: 'Let\'s Get Started',
-                description: 'Create your profile to begin.',
-                icon: Icons.account_circle_rounded,
-                extraContent: Column(
-                  children: [
-                    TextField(
-                      controller: _profileNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Your Name',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _completeSetup,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Create Profile & Set PIN'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildFinalPage(),
             ],
           ),
           Positioned(

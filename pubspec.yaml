@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  permission_handler: ^11.0.1
   
   # Local Storage
   hive: ^2.2.3

@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
-
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -23,7 +22,8 @@ class NotificationService {
       final String timeZoneName = timeZoneResult.toString();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (e) {
-      debugPrint("Error initializing timezone: $e");
+      // ignore: avoid_print
+      print("Error initializing timezone: $e");
     }
 
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -41,12 +41,41 @@ class NotificationService {
     _isInitialized = true;
   }
 
+  Future<void> requestExactAlarmPermission() async {
+    final status = await Permission.scheduleExactAlarm.status;
+    if (status.isDenied) {
+      await Permission.scheduleExactAlarm.request();
+    }
+  }
+
+  Future<void> startForegroundService() async {
+    const androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'foreground_service_channel',
+      'Foreground Service',
+      channelDescription: 'Channel for foreground service to ensure timely notifications',
+      importance: Importance.low, // Low importance to be less intrusive
+      priority: Priority.low,
+      ongoing: true,
+      autoCancel: false,
+    );
+
+    await notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.startForegroundService(
+      1, 
+      'Kare is running', 
+      'Ensuring your medication reminders are delivered on time.', 
+      notificationDetails: androidPlatformChannelSpecifics,
+    );
+  }
+
+  Future<void> stopForegroundService() async {
+    await notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.stopForegroundService();
+  }
+
   @pragma('vm:entry-point')
   static void onDidReceiveNotificationResponse(NotificationResponse response) {
     // We just want to open the app, so we don't need to do anything here.
   }
 
-  // For reminders with actions
   NotificationDetails _reminderNotificationDetails(String urgency) {
     Color color;
     Importance importance;
@@ -83,7 +112,6 @@ class NotificationService {
     );
   }
 
-  // For simple alerts without actions
   NotificationDetails _alertNotificationDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
@@ -96,7 +124,6 @@ class NotificationService {
     );
   }
   
-  // Method for simple, immediate alerts (like refills)
   Future<void> showNotification({
     required int id,
     required String title,
@@ -119,21 +146,26 @@ class NotificationService {
     required String scheduledTimeStr,
     required String urgency,
   }) async {
-    final tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
+    try {
+      final tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
 
-    final payload = '$id;;;$medicationName;;;$scheduledTimeStr;;;$body';
+      final payload = '$id;;;$medicationName;;;$scheduledTimeStr;;;$body';
 
-    await notificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      scheduledDate,
-      _reminderNotificationDetails(urgency),
-      payload: payload,
-      androidAllowWhileIdle: true,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+      await notificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        _reminderNotificationDetails(urgency),
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error scheduling notification: $e');
+    }
   }
 
   Future<void> cancelNotification(int id) async {
